@@ -1,6 +1,8 @@
 package sqlite;
 
+import java.io.File;
 import java.lang.reflect.Field;
+import java.net.URL;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -10,19 +12,72 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
+import annotacions.Coluna;
+
 public class Sqlite {
 
-	List<Tabela> dados;
+	private final boolean DEBUG = true;
+
+	String file;
+	List<Classe> classes;
+	List<String> packageScan;
 
 	public Sqlite() {
 		super();
-		this.dados = new ArrayList<Tabela>();
+		this.file = "dados.db";
+		this.packageScan = new ArrayList<String>();
+		this.classes = new ArrayList<Classe>();
+	}
+
+	public String getFile() {
+		return file;
+	}
+
+	public void setFile(String file) {
+		this.file = file;
+	}
+
+	public List<Classe> getClasses() {
+		return classes;
+	}
+
+	public void setClasses(List<Classe> classes) {
+		this.classes = classes;
+	}
+
+	public void addClasses(Classe classe) {
+		this.classes.add(classe);
+	}
+
+	public List<String> getPackageScan() {
+		return packageScan;
+	}
+
+	public void setPackageScan(List<String> packageScan) {
+		this.packageScan = packageScan;
+	}
+
+	public void addPackagescan(String pack) {
+		this.packageScan.add(pack);
+	}
+
+	public boolean init() {
+		if (this.getPackageScan().size() < 1)
+			return false;
+		this.scan();
+		if (this.getClasses().size() < 1)
+			return false;
+
+		this.gerarTabelas();
+
+		return true;
 	}
 
 	public Connection conn() {
 		try {
 			System.out.println("Iniciando conecção.....");
-			Connection connection = DriverManager.getConnection("jdbc:sqlite:dados2.db");
+			System.out.println("jdbc:sqlite:" + file);
+			Connection connection = DriverManager.getConnection("jdbc:sqlite:" + file);
 			return connection;
 		} catch (SQLException e) {
 			System.out.println("ERRO conn: " + e.getErrorCode());
@@ -32,73 +87,132 @@ public class Sqlite {
 		}
 	}
 
-	public void setClassModel(Class<?> c) {
-		Tabela tabela = new Tabela();
-		tabela.setNome(c.getName());
-		tabela.setClasse(c);
-		System.out.println("READ Classe " + c.getName());
-		for (Field field : c.getDeclaredFields()) {
-			tabela.getAtributos().add(new Atributo(field.getName(), field.getGenericType()));
-		}
-		dados.add(tabela);
-	}
-
-	public Tabela getTabela(Class<?> c) {
-		Tabela tabela = new Tabela();
-		tabela.setNome(c.getName().replace("models.", "").toLowerCase());
-		tabela.setClasse(c);
-		System.out.println("READ Classe " + tabela.getNome());
+	public Classe gerarClasse(Class<?> c) {
+		Classe classe = new Classe();
+		String[] n = c.getName().split("\\.");
+		classe.setNome(n[n.length - 1]);
+		classe.setClasse(c);
 		for (Field field : c.getDeclaredFields()) {
 			Atributo atributo = null;
-			System.out.println(field.isAnnotationPresent(SQLITE.class));
-			
-			if (field.isAnnotationPresent(SQLITE.class)) {
-				SQLITE annotacion = field.getAnnotation(SQLITE.class);
-				atributo = new Atributo(field.getName(), field.getType(), annotacion.PK(), annotacion.AI(),
-						annotacion.notNull());
+			if (field.isAnnotationPresent(Coluna.class)) {
+				Coluna annotacion = field.getAnnotation(Coluna.class);
+				if (annotacion.nome().equals("$")) {
+					atributo = new Atributo(field.getName(), field.getType(), annotacion.PK(), annotacion.AI(),
+							annotacion.notNull());
 
+				} else {
+					atributo = new Atributo(annotacion.nome(), field.getType(), annotacion.PK(), annotacion.AI(),
+							annotacion.notNull());
+				}
 			} else {
 				atributo = new Atributo(field.getName(), field.getType(), false, false, false);
 			}
-			tabela.getAtributos().add(atributo);
+			classe.getAtributos().add(atributo);
 		}
 
-		return tabela;
+		return classe;
 	}
 
-	public void criarTabela(Tabela tabela) throws SQLException {
+	public boolean scan() {
+
+		System.out.println("Scan PACKAGE...(" + this.packageScan.size() + ")");
+		for (int i = 0; i < this.packageScan.size(); i++) {
+
+			String packageName = this.packageScan.get(i);
+			ClassLoader classLoader = ClassLoader.getSystemClassLoader();
+			URL packageURL;
+
+			packageURL = classLoader.getResource(packageName);
+
+			if (packageURL != null) {
+				String packagePath = packageURL.getPath();
+				if (packagePath != null) {
+					File packageDir = new File(packagePath);
+					if (packageDir.isDirectory()) {
+						File[] files = packageDir.listFiles();
+						for (File file : files) {
+							String className = file.getName();
+							if (className.endsWith(".class")) {
+								className = packageName + "." + className.substring(0, className.length() - 6);
+								try {
+									Class clazz = classLoader.loadClass(className);
+									classes.add(gerarClasse(clazz));
+
+								} catch (ClassNotFoundException e) {
+									System.out.println(e.getMessage());
+									e.printStackTrace();
+								}
+								// do something with the class
+							}
+						}
+					}
+				}
+			}
+
+		}
+		return true;
+	}
+
+	public boolean gerarTabelas() {
+		for (int i = 0; i < classes.size(); i++) {
+			try {
+				gerarTabelaSql(classes.get(i));
+			} catch (SQLException e) {
+				System.out.println("ERRO: GERAR TABELAS");
+				System.out.println("TABELA: " + classes.get(i).getNome());
+				System.out.println(e.getMessage());
+
+				e.printStackTrace();
+			}
+		}
+		return true;
+	}
+
+	public void gerarTabelaSql(Classe classe) throws SQLException {
+
+		System.out.println("GERAR TABELA");
 		Connection conn = conn();
 		Statement statement = conn.createStatement();
 
-		String sql = "CREATE TABLE IF NOT EXISTS " + tabela.getNome();
+		System.out.println("gerartabelasql");
+		String sql = "CREATE TABLE IF NOT EXISTS " + classe.getNome();
 		sql = sql.concat("(");
 		String primaria = "";
-		for (int i = 0; i < tabela.getAtributos().size(); i++) {
-			if (tabela.getAtributos().get(i).isPK()) {
-				if (tabela.getAtributos().get(i).isAI()) {
-					primaria = ", PRIMARY KEY(\"id\" AUTOINCREMENT)";
+		for (int i = 0; i < classe.getAtributos().size(); i++) {
+			if (classe.getAtributos().get(i).isPK()) {
+				if (classe.getAtributos().get(i).isAI()) {
+					primaria = ", PRIMARY KEY(\"" + classe.getAtributos().get(i).getNome() + "\" AUTOINCREMENT)";
 
 				} else {
-					primaria = ", PRIMARY KEY(\"id\")";
+					primaria = ", PRIMARY KEY(\"" + classe.getAtributos().get(i).getNome() + "\")";
 				}
 			}
 			String notnull = "";
-			if (tabela.getAtributos().get(i).isNN())
+			if (classe.getAtributos().get(i).isNN())
 				notnull = " NOT NULL";
 
 			if (sql.substring(sql.length() - 1, sql.length()).equals("(")) {
-				sql = sql.concat(tabela.getAtributos().get(i).getNome() + " "
-						+ Tipos.getTipo(tabela.getAtributos().get(i).getTipo()).name() + notnull);
+				sql = sql.concat(classe.getAtributos().get(i).getNome() + " "
+						+ Tipos.getTipo(classe.getAtributos().get(i).getTipo()).name() + notnull);
 			} else {
-				sql = sql.concat(", " + tabela.getAtributos().get(i).getNome() + " "
-						+ Tipos.getTipo(tabela.getAtributos().get(i).getTipo()).name() + notnull);
+				sql = sql.concat(", " + classe.getAtributos().get(i).getNome() + " "
+						+ Tipos.getTipo(classe.getAtributos().get(i).getTipo()).name() + notnull);
 			}
 		}
 		sql = sql.concat(primaria + ")");
-		statement.execute(sql);
 		System.out.println("SQL:" + sql);
+		statement.execute(sql);
 		conn.close();
 
+	}
+
+	private Integer classePresent(Class c) {
+		for (int i = 0; i < this.classes.size(); i++) {
+			if (this.classes.get(i).getClasse().equals(c)) {
+				return i;
+			}
+		}
+		return -1;
 	}
 
 	public static ResultSet query(String sql) throws SQLException {
@@ -120,4 +234,98 @@ public class Sqlite {
 		return stmt.executeQuery();
 	}
 
+	public boolean save(Object obj) {
+		Integer i = this.classePresent(obj.getClass());
+		if (i == -1)
+			return false;
+		Classe classe = this.classes.get(i);
+		String sql = "INSERT INTO " + classe.getNome() + "(";
+		String colunas = "", valores = "";
+		for (int z = 0; z < classe.getAtributos().size(); z++) {
+			Atributo at = classe.getAtributos().get(z);
+			if (!at.isAI()) {
+				colunas = colunas.concat(at.getNome() + ",");
+				if (z == classe.getAtributos().size() - 1)
+					colunas = colunas.substring(0, colunas.length() - 1);
+
+				try {
+
+					Field f = obj.getClass().getDeclaredField(at.getNome());
+					f.setAccessible(true);
+					if (at.getTipo().equals(String.class)) {
+						valores = valores.concat("\"" + f.get(obj) + "\",");
+					} else {
+						valores = valores.concat(f.get(obj) + ",");
+					}
+					if (z == classe.getAtributos().size() - 1)
+						valores = valores.substring(0, valores.length() - 1);
+
+				} catch (IllegalArgumentException | IllegalAccessException | NoSuchFieldException
+						| SecurityException e) {
+
+					System.out.println(e.getMessage());
+					e.printStackTrace();
+				}
+			}
+
+		}
+		sql = sql.concat(colunas + ") VALUES (" + valores + ")");
+		if (DEBUG)
+			System.out.println(sql);
+		Connection conn = this.conn();
+		try {
+			Statement stmt = conn.createStatement();
+			stmt.executeUpdate(sql);
+			conn.close();
+		} catch (SQLException e) {
+			System.out.println(e.getMessage());
+			e.printStackTrace();
+		}
+		return true;
+	}
+
+	public boolean update(Object obj, Integer key) {
+		Integer i = this.classePresent(obj.getClass());
+		if (i == -1)
+			return false;
+		Classe classe = this.classes.get(i);
+		String sql = "UPDATE " + classe.getNome() + " SET ";
+		String valores = "", where = " WHERE ";
+		for (int z = 0; z < classe.getAtributos().size(); z++) {
+			Atributo at = classe.getAtributos().get(z);
+
+			try {
+				Field f = obj.getClass().getDeclaredField(at.getNome());
+				f.setAccessible(true);
+				if (!at.isAI()) {
+					if (at.getTipo().equals(String.class)) {
+						valores = valores.concat(at.getNome() + "=\"" + f.get(obj) + "\",");
+					} else {
+						valores = valores.concat(at.getNome() + "=" + f.get(obj) + ",");
+					}
+					if (z == classe.getAtributos().size() - 1)
+						valores = valores.substring(0, valores.length() - 1);
+				} else {
+					where = where.concat(at.getNome() + "=" + key);
+				}
+			} catch (NoSuchFieldException | SecurityException | IllegalArgumentException | IllegalAccessException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+
+		}
+		sql = sql.concat(valores + where );
+		if (DEBUG)
+			System.out.println(sql);
+		Connection conn = this.conn();
+		try {
+			Statement stmt = conn.createStatement();
+			stmt.executeUpdate(sql);
+			conn.close();
+		} catch (SQLException e) {
+			System.out.println(e.getMessage());
+			e.printStackTrace();
+		}
+		return true;
+	}
 }

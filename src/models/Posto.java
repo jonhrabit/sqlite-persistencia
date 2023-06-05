@@ -1,14 +1,17 @@
 package models;
 
-import sqlite.SQLITE;
+import annotacions.Coluna;
+import annotacions.Tabela;
 
+@Tabela
 public class Posto {
 	
-	@SQLITE(PK=true,AI=true)
+	@Coluna(PK=true,AI=true)
 	private Integer id;
 	
 	private String nome, jornada , turno;
 	private Integer quantidade;
+	
 	public Integer getId() {
 		return id;
 	}

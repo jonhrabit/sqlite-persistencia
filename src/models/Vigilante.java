@@ -2,9 +2,13 @@ package models;
 
 import java.util.Date;
 
+import annotacions.Coluna;
+import annotacions.Tabela;
 
+@Tabela
 public class Vigilante {
 	
+	@Coluna(AI=true, PK=true)
 	private Integer id;
 	private Date admissao,desligamento;
 	private String inicio, matricula, nome, observacao, status;

@@ -3,11 +3,12 @@ package sqlite;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Tabela {
+public class Classe {
+	
 	private String nome;
 	private Class<?> classe;
-
-	private List<Atributo> atributos;
+	private List<Atributo> colunas;
+	
 	public String getNome() {
 		return nome;
 	}
@@ -15,10 +16,10 @@ public class Tabela {
 		this.nome = nome;
 	}
 	public List<Atributo> getAtributos() {
-		return atributos;
+		return colunas;
 	}
 	public void setAtributos(List<Atributo> atributos) {
-		this.atributos = atributos;
+		this.colunas = atributos;
 	}
 	
 	public Class<?> getClasse() {
@@ -27,19 +28,19 @@ public class Tabela {
 	public void setClasse(Class<?> classe) {
 		this.classe = classe;
 	}
-	public Tabela(String nome, Class<?> classe, List<Atributo> atributos) {
+	public Classe(String nome, Class<?> classe, List<Atributo> atributos) {
 		super();
 		this.nome = nome;
 		this.classe = classe;
-		this.atributos = atributos;
+		this.colunas = atributos;
 	}
-	public Tabela() {
+	public Classe() {
 		super();
-		this.atributos=new ArrayList<Atributo>();
+		this.colunas=new ArrayList<Atributo>();
 	}
 	@Override
 	public String toString() {
-		return "Tabela [nome=" + nome + ", classe=" + classe + ", atributos=" + atributos + "]";
+		return "Tabela [nome=" + nome + ", classe=" + classe + ", atributos=" + colunas + "]";
 	}
 	
 
