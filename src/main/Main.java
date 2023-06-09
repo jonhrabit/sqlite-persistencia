@@ -15,8 +15,10 @@ public class Main {
 		}
 		Posto posto = new Posto(1,"Casa","12x36","DIURNO",1);
 		//sqlite.save(posto);
-		Posto posto2 = new Posto(1,"Terreno","8:48","DIURNO",1);
-		sqlite.update(posto2, 2);
+		Posto posto2 = new Posto(3,"Terreno","8:48","asdadsadsad",1);
+		//sqlite.update(posto2, 2);
+		
+		sqlite.delete(posto2);
 		
 	}
 

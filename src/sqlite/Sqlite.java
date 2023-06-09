@@ -89,6 +89,7 @@ public class Sqlite {
 
 	public Classe gerarClasse(Class<?> c) {
 		Classe classe = new Classe();
+
 		String[] n = c.getName().split("\\.");
 		classe.setNome(n[n.length - 1]);
 		classe.setClasse(c);
@@ -107,7 +108,7 @@ public class Sqlite {
 			} else {
 				atributo = new Atributo(field.getName(), field.getType(), false, false, false);
 			}
-			classe.getAtributos().add(atributo);
+			classe.getColunas().add(atributo);
 		}
 
 		return classe;
@@ -178,25 +179,25 @@ public class Sqlite {
 		String sql = "CREATE TABLE IF NOT EXISTS " + classe.getNome();
 		sql = sql.concat("(");
 		String primaria = "";
-		for (int i = 0; i < classe.getAtributos().size(); i++) {
-			if (classe.getAtributos().get(i).isPK()) {
-				if (classe.getAtributos().get(i).isAI()) {
-					primaria = ", PRIMARY KEY(\"" + classe.getAtributos().get(i).getNome() + "\" AUTOINCREMENT)";
+		for (int i = 0; i < classe.getColunas().size(); i++) {
+			if (classe.getColunas().get(i).isPK()) {
+				if (classe.getColunas().get(i).isAI()) {
+					primaria = ", PRIMARY KEY(\"" + classe.getColunas().get(i).getNome() + "\" AUTOINCREMENT)";
 
 				} else {
-					primaria = ", PRIMARY KEY(\"" + classe.getAtributos().get(i).getNome() + "\")";
+					primaria = ", PRIMARY KEY(\"" + classe.getColunas().get(i).getNome() + "\")";
 				}
 			}
 			String notnull = "";
-			if (classe.getAtributos().get(i).isNN())
+			if (classe.getColunas().get(i).isNN())
 				notnull = " NOT NULL";
 
 			if (sql.substring(sql.length() - 1, sql.length()).equals("(")) {
-				sql = sql.concat(classe.getAtributos().get(i).getNome() + " "
-						+ Tipos.getTipo(classe.getAtributos().get(i).getTipo()).name() + notnull);
+				sql = sql.concat(classe.getColunas().get(i).getNome() + " "
+						+ Tipos.getTipo(classe.getColunas().get(i).getTipo()).name() + notnull);
 			} else {
-				sql = sql.concat(", " + classe.getAtributos().get(i).getNome() + " "
-						+ Tipos.getTipo(classe.getAtributos().get(i).getTipo()).name() + notnull);
+				sql = sql.concat(", " + classe.getColunas().get(i).getNome() + " "
+						+ Tipos.getTipo(classe.getColunas().get(i).getTipo()).name() + notnull);
 			}
 		}
 		sql = sql.concat(primaria + ")");
@@ -241,11 +242,11 @@ public class Sqlite {
 		Classe classe = this.classes.get(i);
 		String sql = "INSERT INTO " + classe.getNome() + "(";
 		String colunas = "", valores = "";
-		for (int z = 0; z < classe.getAtributos().size(); z++) {
-			Atributo at = classe.getAtributos().get(z);
+		for (int z = 0; z < classe.getColunas().size(); z++) {
+			Atributo at = classe.getColunas().get(z);
 			if (!at.isAI()) {
 				colunas = colunas.concat(at.getNome() + ",");
-				if (z == classe.getAtributos().size() - 1)
+				if (z == classe.getColunas().size() - 1)
 					colunas = colunas.substring(0, colunas.length() - 1);
 
 				try {
@@ -257,7 +258,7 @@ public class Sqlite {
 					} else {
 						valores = valores.concat(f.get(obj) + ",");
 					}
-					if (z == classe.getAtributos().size() - 1)
+					if (z == classe.getColunas().size() - 1)
 						valores = valores.substring(0, valores.length() - 1);
 
 				} catch (IllegalArgumentException | IllegalAccessException | NoSuchFieldException
@@ -291,8 +292,8 @@ public class Sqlite {
 		Classe classe = this.classes.get(i);
 		String sql = "UPDATE " + classe.getNome() + " SET ";
 		String valores = "", where = " WHERE ";
-		for (int z = 0; z < classe.getAtributos().size(); z++) {
-			Atributo at = classe.getAtributos().get(z);
+		for (int z = 0; z < classe.getColunas().size(); z++) {
+			Atributo at = classe.getColunas().get(z);
 
 			try {
 				Field f = obj.getClass().getDeclaredField(at.getNome());
@@ -303,24 +304,115 @@ public class Sqlite {
 					} else {
 						valores = valores.concat(at.getNome() + "=" + f.get(obj) + ",");
 					}
-					if (z == classe.getAtributos().size() - 1)
+					if (z == classe.getColunas().size() - 1)
 						valores = valores.substring(0, valores.length() - 1);
 				} else {
 					where = where.concat(at.getNome() + "=" + key);
 				}
 			} catch (NoSuchFieldException | SecurityException | IllegalArgumentException | IllegalAccessException e) {
-				// TODO Auto-generated catch block
+				System.out.println(e.getMessage());
 				e.printStackTrace();
 			}
 
 		}
-		sql = sql.concat(valores + where );
+		sql = sql.concat(valores + where);
 		if (DEBUG)
 			System.out.println(sql);
 		Connection conn = this.conn();
 		try {
 			Statement stmt = conn.createStatement();
 			stmt.executeUpdate(sql);
+			conn.close();
+		} catch (SQLException e) {
+			System.out.println(e.getMessage());
+			e.printStackTrace();
+		}
+		return true;
+	}
+
+	public boolean delete(Object obj) {
+		Integer i = this.classePresent(obj.getClass());
+		if (i == -1)
+			return false;
+		Classe classe = this.classes.get(i);
+
+		String sql = "DELETE FROM " + classe.getNome() + " WHERE ";
+
+		for (int z = 0; z < classe.getColunas().size(); z++) {
+			Atributo at = classe.getColunas().get(z);
+			try {
+				Field f = obj.getClass().getDeclaredField(at.getNome());
+				f.setAccessible(true);
+				if (at.isPK()) {
+					sql = sql.concat(at.getNome() + "=" + f.get(obj));
+
+				}
+			} catch (NoSuchFieldException | SecurityException | IllegalArgumentException | IllegalAccessException e) {
+				System.out.println(e.getMessage());
+				e.printStackTrace();
+			}
+
+		}
+		if (DEBUG)
+			System.out.println(sql);
+		Connection conn = this.conn();
+		try {
+			Statement stmt = conn.createStatement();
+			stmt.executeUpdate(sql);
+			conn.close();
+		} catch (SQLException e) {
+			System.out.println(e.getMessage());
+			e.printStackTrace();
+		}
+		return true;
+	}
+
+	public Object get(Class c, Integer key) {
+
+		Integer i = this.classePresent(c);
+		if (i == -1)
+			return false;
+		Classe classe = this.classes.get(i);
+		
+		String sql = "SELECT * FROM " + classe.getNome() + " WHERE ";
+
+		for (int z = 0; z < classe.getColunas().size(); z++) {
+			Atributo at = classe.getColunas().get(z);
+			try {
+				if (at.isPK()) {
+					sql = sql.concat(at.getNome() + "=" + key);
+
+				}
+			} catch (SecurityException | IllegalArgumentException e) {
+				System.out.println(e.getMessage());
+				e.printStackTrace();
+			}
+
+		}
+		
+
+		Integer indexContrutor = 0;
+		for (int x = 0; x < c.getDeclaredConstructors().length; x++) {
+			if (c.getDeclaredConstructors()[x].getParameterCount() == classe.getColunas().size()) {
+				indexContrutor = x;
+			}
+		}
+		System.out.println("INDEXCONTRUTOR: " + indexContrutor);
+		
+		//Object obj = c.getDeclaredConstructors()[x].newInstance()
+		
+		if (DEBUG)
+			System.out.println(sql);
+		Connection conn = this.conn();
+		try {
+			PreparedStatement stmt = conn.prepareStatement(sql);
+			ResultSet rs = stmt.executeQuery();
+
+			while (rs.next()) {
+
+				System.out.println(rs.getInt("id") + "\t" + rs.getString("name") + "\t" + rs.getDouble("capacity"));
+			}
+
 			conn.close();
 		} catch (SQLException e) {
 			System.out.println(e.getMessage());
