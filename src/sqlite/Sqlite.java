@@ -2,6 +2,7 @@ package sqlite;
 
 import java.io.File;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -75,8 +76,6 @@ public class Sqlite {
 
 	public Connection conn() {
 		try {
-			System.out.println("Iniciando conecção.....");
-			System.out.println("jdbc:sqlite:" + file);
 			Connection connection = DriverManager.getConnection("jdbc:sqlite:" + file);
 			return connection;
 		} catch (SQLException e) {
@@ -136,7 +135,7 @@ public class Sqlite {
 							if (className.endsWith(".class")) {
 								className = packageName + "." + className.substring(0, className.length() - 6);
 								try {
-									Class clazz = classLoader.loadClass(className);
+									Class<?> clazz = classLoader.loadClass(className);
 									classes.add(gerarClasse(clazz));
 
 								} catch (ClassNotFoundException e) {
@@ -171,11 +170,9 @@ public class Sqlite {
 
 	public void gerarTabelaSql(Classe classe) throws SQLException {
 
-		System.out.println("GERAR TABELA");
 		Connection conn = conn();
 		Statement statement = conn.createStatement();
 
-		System.out.println("gerartabelasql");
 		String sql = "CREATE TABLE IF NOT EXISTS " + classe.getNome();
 		sql = sql.concat("(");
 		String primaria = "";
@@ -207,7 +204,7 @@ public class Sqlite {
 
 	}
 
-	private Integer classePresent(Class c) {
+	private Integer classePresent(Class<? extends Object> c) {
 		for (int i = 0; i < this.classes.size(); i++) {
 			if (this.classes.get(i).getClasse().equals(c)) {
 				return i;
@@ -355,8 +352,8 @@ public class Sqlite {
 		}
 		if (DEBUG)
 			System.out.println(sql);
-		Connection conn = this.conn();
 		try {
+			Connection conn = this.conn();
 			Statement stmt = conn.createStatement();
 			stmt.executeUpdate(sql);
 			conn.close();
@@ -367,15 +364,59 @@ public class Sqlite {
 		return true;
 	}
 
-	public Object get(Class c, Integer key) {
-
+	public Classe getClasse(Class<? extends Object> c) {
 		Integer i = this.classePresent(c);
 		if (i == -1)
-			return false;
-		Classe classe = this.classes.get(i);
-		
-		String sql = "SELECT * FROM " + classe.getNome() + " WHERE ";
+			return null;
+		return this.classes.get(i);
+	}
 
+	public Object newClasse(Class<? extends Object> c, ResultSet rs) {
+		Classe classe = this.getClasse(c);
+		Object[] obj = new Object[classe.getColunas().size()];
+		try {
+			rs.next();
+
+			for (int z = 0; z < classe.getColunas().size(); z++) {
+				Atributo at = classe.getColunas().get(z);
+				obj[z] = null;
+				switch (at.getTipo().getTypeName()) {
+				case "java.lang.Integer":
+					obj[z] = rs.getInt(at.getNome());
+					break;
+				case "java.lang.String":
+					obj[z] = rs.getString(at.getNome());
+					break;
+				default:
+					obj[z] = rs.getString(at.getNome());
+				}
+			}
+
+		} catch (SQLException e) {
+			System.out.println(e.getMessage());
+			e.printStackTrace();
+		}
+
+		Integer indexContrutor = 0;
+		for (int x = 0; x < c.getDeclaredConstructors().length; x++) {
+			if (c.getDeclaredConstructors()[x].getParameterCount() == classe.getColunas().size()) {
+				indexContrutor = x;
+			}
+		}
+		try {
+			return c.getDeclaredConstructors()[indexContrutor].newInstance(obj);
+		} catch (InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException
+				| SecurityException e) {
+			System.out.println(e.getMessage());
+			e.printStackTrace();
+		}
+		return false;
+	}
+
+	public Object get(Class<? extends Object> c, Integer key) {
+		Classe classe = this.getClasse(c);
+
+		String sql = "SELECT * FROM " + classe.getNome() + " WHERE ";
 		for (int z = 0; z < classe.getColunas().size(); z++) {
 			Atributo at = classe.getColunas().get(z);
 			try {
@@ -389,35 +430,127 @@ public class Sqlite {
 			}
 
 		}
-		
 
-		Integer indexContrutor = 0;
-		for (int x = 0; x < c.getDeclaredConstructors().length; x++) {
-			if (c.getDeclaredConstructors()[x].getParameterCount() == classe.getColunas().size()) {
-				indexContrutor = x;
-			}
-		}
-		System.out.println("INDEXCONTRUTOR: " + indexContrutor);
-		
-		//Object obj = c.getDeclaredConstructors()[x].newInstance()
-		
 		if (DEBUG)
-			System.out.println(sql);
-		Connection conn = this.conn();
+			System.out.println("SQL: "+ sql);
+
 		try {
+			Connection conn = this.conn();
 			PreparedStatement stmt = conn.prepareStatement(sql);
 			ResultSet rs = stmt.executeQuery();
 
-			while (rs.next()) {
-
-				System.out.println(rs.getInt("id") + "\t" + rs.getString("name") + "\t" + rs.getDouble("capacity"));
-			}
-
-			conn.close();
+			return this.newClasse(c, rs);
 		} catch (SQLException e) {
 			System.out.println(e.getMessage());
 			e.printStackTrace();
 		}
-		return true;
+
+		return false;
+	}
+
+	public List<? extends Object> all(Class<? extends Object> c) {
+		Classe classe = this.getClasse(c);
+		List<Object> lista = new ArrayList<Object>();
+		Object[] obj = new Object[classe.getColunas().size()];
+		String sql = "SELECT * FROM " + classe.getNome();
+
+		if (DEBUG)
+			System.out.println("SQL: "+ sql);
+
+		try {
+			Connection conn = this.conn();
+			PreparedStatement stmt = conn.prepareStatement(sql);
+			ResultSet rs = stmt.executeQuery();
+
+			Integer indexContrutor = 0;
+			for (int x = 0; x < c.getDeclaredConstructors().length; x++) {
+				if (c.getDeclaredConstructors()[x].getParameterCount() == classe.getColunas().size()) {
+					indexContrutor = x;
+				}
+			}
+			while (rs.next()) {
+
+				for (int z = 0; z < classe.getColunas().size(); z++) {
+					Atributo at = classe.getColunas().get(z);
+					obj[z] = null;
+					switch (at.getTipo().getTypeName()) {
+					case "java.lang.Integer":
+						obj[z] = rs.getInt(at.getNome());
+						break;
+					case "java.lang.String":
+						obj[z] = rs.getString(at.getNome());
+						break;
+					default:
+						obj[z] = rs.getString(at.getNome());
+					}
+				}
+				try {
+					lista.add(c.getDeclaredConstructors()[indexContrutor].newInstance(obj));
+				} catch (InstantiationException | IllegalAccessException | IllegalArgumentException
+						| InvocationTargetException | SecurityException e) {
+					System.out.println(e.getMessage());
+					e.printStackTrace();
+				}
+			}
+
+			return lista;
+		} catch (SQLException e) {
+			System.out.println(e.getMessage());
+			e.printStackTrace();
+		}
+		return null;
+	}
+
+	public List<? extends Object> query(Class<? extends Object> c, String where) {
+		Classe classe = this.getClasse(c);
+		List<Object> lista = new ArrayList<Object>();
+		Object[] obj = new Object[classe.getColunas().size()];
+		String sql = "SELECT * FROM " + classe.getNome() + " where "+where;
+
+		if (DEBUG)
+			System.out.println(sql);
+
+		try {
+			Connection conn = this.conn();
+			PreparedStatement stmt = conn.prepareStatement(sql);
+			ResultSet rs = stmt.executeQuery();
+
+			Integer indexContrutor = 0;
+			for (int x = 0; x < c.getDeclaredConstructors().length; x++) {
+				if (c.getDeclaredConstructors()[x].getParameterCount() == classe.getColunas().size()) {
+					indexContrutor = x;
+				}
+			}
+			while (rs.next()) {
+
+				for (int z = 0; z < classe.getColunas().size(); z++) {
+					Atributo at = classe.getColunas().get(z);
+					obj[z] = null;
+					switch (at.getTipo().getTypeName()) {
+					case "java.lang.Integer":
+						obj[z] = rs.getInt(at.getNome());
+						break;
+					case "java.lang.String":
+						obj[z] = rs.getString(at.getNome());
+						break;
+					default:
+						obj[z] = rs.getString(at.getNome());
+					}
+				}
+				try {
+					lista.add(c.getDeclaredConstructors()[indexContrutor].newInstance(obj));
+				} catch (InstantiationException | IllegalAccessException | IllegalArgumentException
+						| InvocationTargetException | SecurityException e) {
+					System.out.println(e.getMessage());
+					e.printStackTrace();
+				}
+			}
+
+			return lista;
+		} catch (SQLException e) {
+			System.out.println(e.getMessage());
+			e.printStackTrace();
+		}
+		return null;
 	}
 }

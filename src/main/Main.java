@@ -1,6 +1,8 @@
 package main;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 
 import models.Posto;
 import sqlite.Sqlite;
@@ -13,12 +15,18 @@ public class Main {
 		if(!sqlite.init()) {
 			System.out.println("Não foi possivel inicializar.");
 		}
-		Posto posto = new Posto(1,"Casa","12x36","DIURNO",1);
-		//sqlite.save(posto);
-		Posto posto2 = new Posto(3,"Terreno","8:48","asdadsadsad",1);
-		//sqlite.update(posto2, 2);
 		
-		sqlite.delete(posto2);
+		Posto posto = (Posto) sqlite.get(Posto.class, 1);
+		System.out.println(posto.toString());
+		
+		List<Posto> lista = new ArrayList<Posto>();
+		lista = (List<Posto>) sqlite.all(Posto.class);
+		System.out.println(lista.size());
+		lista.forEach(o ->{
+			System.out.println(o.getNome());
+		});
+		
+		
 		
 	}
 
