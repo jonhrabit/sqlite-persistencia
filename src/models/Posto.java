@@ -5,13 +5,13 @@ import annotacions.Tabela;
 
 @Tabela
 public class Posto {
-	
+
 	@Coluna(PK=true,AI=true)
 	private Integer id;
-	
+
 	private String nome, jornada , turno;
 	private Integer quantidade;
-	
+
 	public Integer getId() {
 		return id;
 	}
@@ -58,5 +58,5 @@ public class Posto {
 		return "Posto [id=" + id + ", nome=" + nome + ", jornada=" + jornada + ", turno=" + turno + ", quantidade="
 				+ quantidade + "]";
 	}
-	
+
 }

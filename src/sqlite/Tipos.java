@@ -8,7 +8,7 @@ public enum Tipos {
     NULL,
     REAL,
     BLOB;
-    
+
     public static Tipos getTipo(Type tipo) {
     	switch(tipo.getTypeName()) {
     	case "java.util.Date":
@@ -21,9 +21,9 @@ public enum Tipos {
     		return BLOB;
     	case "java.lang.Float":
     		return REAL;
-    	default: return NULL;    	
+    	default: return NULL;
     	}
-    	
+
     }
-    
+
 }

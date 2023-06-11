@@ -7,13 +7,13 @@ import annotacions.Tabela;
 
 @Tabela
 public class Vigilante {
-	
+
 	@Coluna(AI=true, PK=true)
 	private Integer id;
 	private Date admissao,desligamento;
 	private String inicio, matricula, nome, observacao, status;
 	private Integer posto;
-	
+
 	public Integer getId() {
 		return id;
 	}
@@ -82,7 +82,7 @@ public class Vigilante {
 		this.posto = posto;
 	}
 	public Vigilante() {
-		super();	
+		super();
 	}
 	@Override
 	public String toString() {
@@ -90,5 +90,5 @@ public class Vigilante {
 				+ inicio + ", matricula=" + matricula + ", nome=" + nome + ", observacao=" + observacao + ", status="
 				+ status + ", posto=" + posto + "]";
 	}
-	
+
 }

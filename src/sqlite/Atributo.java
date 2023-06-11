@@ -16,17 +16,17 @@ public class Atributo {
 	public void setNome(String nome) {
 		this.nome = nome;
 	}
-	
 
 	public Type getTipo() {
 		return tipo;
 	}
 
 	public void setTipo(Type tipo) {
-		this.tipo = tipo;
+		if (tipo.equals(int.class))
+			this.tipo = Integer.class;
+		else
+			this.tipo = tipo;
 	}
-	
-	
 
 	public boolean isPK() {
 		return PK;
@@ -51,16 +51,18 @@ public class Atributo {
 	public void setNN(boolean nN) {
 		NN = nN;
 	}
-	
 
 	public Atributo(String nome, Type tipo, boolean pK, boolean aI, boolean nN) {
 		super();
 		this.nome = nome;
+		if (tipo.equals(int.class))
+			tipo=Integer.class;
 		this.tipo = tipo;
 		PK = pK;
 		AI = aI;
 		NN = nN;
 	}
+
 	public Atributo(String nome, Type tipo) {
 		super();
 		this.nome = nome;
@@ -70,6 +72,10 @@ public class Atributo {
 	public Atributo() {
 		super();
 	}
-	
+
+	@Override
+	public String toString() {
+		return "Atributo [nome=" + nome + ", tipo=" + tipo + ", PK=" + PK + ", AI=" + AI + ", NN=" + NN + "]";
+	}
 
 }

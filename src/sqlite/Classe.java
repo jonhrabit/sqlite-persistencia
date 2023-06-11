@@ -54,7 +54,7 @@ public class Classe {
 
 	public Classe() {
 		super();
-		this.colunas = new ArrayList<Atributo>();
+		this.colunas = new ArrayList<>();
 	}
 
 	@Override

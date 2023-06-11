@@ -10,8 +10,11 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import annotacions.Coluna;
 
@@ -25,9 +28,9 @@ public class Sqlite {
 
 	public Sqlite() {
 		super();
-		this.file = "dados.db";
-		this.packageScan = new ArrayList<String>();
-		this.classes = new ArrayList<Classe>();
+		this.file = "teste.db";
+		this.packageScan = new ArrayList<>();
+		this.classes = new ArrayList<>();
 	}
 
 	public String getFile() {
@@ -107,6 +110,8 @@ public class Sqlite {
 			} else {
 				atributo = new Atributo(field.getName(), field.getType(), false, false, false);
 			}
+			if (DEBUG)
+				System.out.println(atributo);
 			classe.getColunas().add(atributo);
 		}
 
@@ -154,12 +159,12 @@ public class Sqlite {
 	}
 
 	public boolean gerarTabelas() {
-		for (int i = 0; i < classes.size(); i++) {
+		for (Classe element : classes) {
 			try {
-				gerarTabelaSql(classes.get(i));
+				gerarTabelaSql(element);
 			} catch (SQLException e) {
 				System.out.println("ERRO: GERAR TABELAS");
-				System.out.println("TABELA: " + classes.get(i).getNome());
+				System.out.println("TABELA: " + element.getNome());
 				System.out.println(e.getMessage());
 
 				e.printStackTrace();
@@ -176,25 +181,25 @@ public class Sqlite {
 		String sql = "CREATE TABLE IF NOT EXISTS " + classe.getNome();
 		sql = sql.concat("(");
 		String primaria = "";
-		for (int i = 0; i < classe.getColunas().size(); i++) {
-			if (classe.getColunas().get(i).isPK()) {
-				if (classe.getColunas().get(i).isAI()) {
-					primaria = ", PRIMARY KEY(\"" + classe.getColunas().get(i).getNome() + "\" AUTOINCREMENT)";
+		for (Atributo element : classe.getColunas()) {
+			if (element.isPK()) {
+				if (element.isAI()) {
+					primaria = ", PRIMARY KEY(\"" + element.getNome() + "\" AUTOINCREMENT)";
 
 				} else {
-					primaria = ", PRIMARY KEY(\"" + classe.getColunas().get(i).getNome() + "\")";
+					primaria = ", PRIMARY KEY(\"" + element.getNome() + "\")";
 				}
 			}
 			String notnull = "";
-			if (classe.getColunas().get(i).isNN())
+			if (element.isNN())
 				notnull = " NOT NULL";
 
 			if (sql.substring(sql.length() - 1, sql.length()).equals("(")) {
-				sql = sql.concat(classe.getColunas().get(i).getNome() + " "
-						+ Tipos.getTipo(classe.getColunas().get(i).getTipo()).name() + notnull);
+				sql = sql.concat(element.getNome() + " "
+						+ Tipos.getTipo(element.getTipo()).name() + notnull);
 			} else {
-				sql = sql.concat(", " + classe.getColunas().get(i).getNome() + " "
-						+ Tipos.getTipo(classe.getColunas().get(i).getTipo()).name() + notnull);
+				sql = sql.concat(", " + element.getNome() + " "
+						+ Tipos.getTipo(element.getTipo()).name() + notnull);
 			}
 		}
 		sql = sql.concat(primaria + ")");
@@ -250,11 +255,20 @@ public class Sqlite {
 
 					Field f = obj.getClass().getDeclaredField(at.getNome());
 					f.setAccessible(true);
-					if (at.getTipo().equals(String.class)) {
+					switch (at.getTipo().getTypeName()) {
+					case "java.lang.String":
 						valores = valores.concat("\"" + f.get(obj) + "\",");
-					} else {
+						break;
+					case "java.util.Date":
+
+
+						valores = valores.concat("\"" + f.get(obj) + "\",");
+						break;
+					default:
 						valores = valores.concat(f.get(obj) + ",");
+
 					}
+
 					if (z == classe.getColunas().size() - 1)
 						valores = valores.substring(0, valores.length() - 1);
 
@@ -335,8 +349,7 @@ public class Sqlite {
 
 		String sql = "DELETE FROM " + classe.getNome() + " WHERE ";
 
-		for (int z = 0; z < classe.getColunas().size(); z++) {
-			Atributo at = classe.getColunas().get(z);
+		for (Atributo at : classe.getColunas()) {
 			try {
 				Field f = obj.getClass().getDeclaredField(at.getNome());
 				f.setAccessible(true);
@@ -387,6 +400,9 @@ public class Sqlite {
 				case "java.lang.String":
 					obj[z] = rs.getString(at.getNome());
 					break;
+				case "java.util.Date":
+					obj[z] = new SimpleDateFormat("EEE MMM dd HH:mm:ss Z yyyy", Locale.ENGLISH).parse(rs.getString(at.getNome()));
+					break;
 				default:
 					obj[z] = rs.getString(at.getNome());
 				}
@@ -394,6 +410,9 @@ public class Sqlite {
 
 		} catch (SQLException e) {
 			System.out.println(e.getMessage());
+			e.printStackTrace();
+		} catch (ParseException e) {
+			System.out.println("DATA: "+ e.getMessage());
 			e.printStackTrace();
 		}
 
@@ -417,12 +436,10 @@ public class Sqlite {
 		Classe classe = this.getClasse(c);
 
 		String sql = "SELECT * FROM " + classe.getNome() + " WHERE ";
-		for (int z = 0; z < classe.getColunas().size(); z++) {
-			Atributo at = classe.getColunas().get(z);
+		for (Atributo at : classe.getColunas()) {
 			try {
 				if (at.isPK()) {
 					sql = sql.concat(at.getNome() + "=" + key);
-
 				}
 			} catch (SecurityException | IllegalArgumentException e) {
 				System.out.println(e.getMessage());
@@ -432,7 +449,7 @@ public class Sqlite {
 		}
 
 		if (DEBUG)
-			System.out.println("SQL: "+ sql);
+			System.out.println("SQL: " + sql);
 
 		try {
 			Connection conn = this.conn();
@@ -450,12 +467,12 @@ public class Sqlite {
 
 	public List<? extends Object> all(Class<? extends Object> c) {
 		Classe classe = this.getClasse(c);
-		List<Object> lista = new ArrayList<Object>();
+		List<Object> lista = new ArrayList<>();
 		Object[] obj = new Object[classe.getColunas().size()];
 		String sql = "SELECT * FROM " + classe.getNome();
 
 		if (DEBUG)
-			System.out.println("SQL: "+ sql);
+			System.out.println("SQL: " + sql);
 
 		try {
 			Connection conn = this.conn();
@@ -503,9 +520,9 @@ public class Sqlite {
 
 	public List<? extends Object> query(Class<? extends Object> c, String where) {
 		Classe classe = this.getClasse(c);
-		List<Object> lista = new ArrayList<Object>();
+		List<Object> lista = new ArrayList<>();
 		Object[] obj = new Object[classe.getColunas().size()];
-		String sql = "SELECT * FROM " + classe.getNome() + " where "+where;
+		String sql = "SELECT * FROM " + classe.getNome() + " where " + where;
 
 		if (DEBUG)
 			System.out.println(sql);
