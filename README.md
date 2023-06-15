@@ -21,4 +21,5 @@ Persistência:
 3. Delete - Delete;
 4. get - Select;
 5. all - FindAll;
+6. query - select Where ?;
 
